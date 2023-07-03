@@ -11,6 +11,7 @@ It's a Queries and Commands generator in CQRS pattern using [MediatR](https://gi
 - [ ] Making low-level improvments to make generator fast and lightweight
 - [ ] Deploying package on NuGet
 - [ ] Snapshot tests and benchmarks
+- [ ] Enable caching and ignore unchanged files
 
 ## Example usage
 
