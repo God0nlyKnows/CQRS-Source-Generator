@@ -16,8 +16,8 @@ It's a Queries and Commands generator in CQRS pattern using [MediatR](https://gi
 ## Example usage
 
 ```cs
-    [GenerateQuery(Methods= new {"Get","GetAll"},DTO=typeof(AddClientCommand),MapperConfig=mapperConfig)]
-    [GenerateCommands]
+    [GenerateQueries]
+    [GenerateCommand(Method: "Create", DTO: typeof(AddClientCommand), MapperConfig: mapperConfig)]
     public interface IClientRepository
     {
         Task<Client> Create(ClientId clientId, string name, string surname, string email);
