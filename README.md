@@ -10,6 +10,7 @@ It's a Queries and Commands generator in CQRS pattern using [MediatR](https://gi
 - [ ] Adjusting generated classes trough attributes  
 - [ ] Making low-level improvments to make generator fast and lightweight
 - [ ] Deploying package on NuGet
+- [ ] Snapshot tests and benchmarks
 
 ## Example usage
 
