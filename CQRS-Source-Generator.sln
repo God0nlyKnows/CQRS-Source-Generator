@@ -5,11 +5,11 @@ VisualStudioVersion = 17.7.33808.371
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CQRS-Source-Generator", "CQRS-Source-Generator\CQRS-Source-Generator.csproj", "{CDF56244-9723-499A-9F01-6ADE89C73CC5}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleApp", "TestConsoleApp\TestConsoleApp.csproj", "{9F3479ED-7C40-495A-BEAB-F9950AECFCEB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleApp.Abstraction", "TestConsoleApp\TestConsoleApp.Abstraction.csproj", "{9F3479ED-7C40-495A-BEAB-F9950AECFCEB}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleApp.Domain", "TestConsoleApp.Domain\TestConsoleApp.Domain.csproj", "{0672D9CB-467F-4C12-B5F6-524FD48F52B9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CQRS-Source-Generator.Attributes", "CQRS-Source-Generator.Attributes\CQRS-Source-Generator.Attributes.csproj", "{417B6D49-21DD-4D97-B700-440D4761EAA2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CQRS-Source-Generator.Attributes", "CQRS-Source-Generator.Attributes\CQRS-Source-Generator.Attributes.csproj", "{417B6D49-21DD-4D97-B700-440D4761EAA2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

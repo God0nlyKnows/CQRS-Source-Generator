@@ -6,10 +6,13 @@ using System.Text;
 
 namespace CQRS_Source_Generator.Models
 {
-    internal struct InterfaceInfo
+    internal struct MethodInfo
     {
-        public ImmutableArray<ISymbol> Members;
         public string Name;
         public string Namespace;
+        public string ParentInterface;
+        public string ReturnType;
+        public bool IsAsync;
+        public (string, string) Parameter;
     }
 }

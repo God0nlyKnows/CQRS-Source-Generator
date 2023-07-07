@@ -7,6 +7,9 @@ using Microsoft.CodeAnalysis.Text;
 using System.Collections.Immutable;
 using System.Threading;
 using CQRS_Source_Generator.Models;
+using Microsoft.CodeAnalysis.CSharp;
+using System.Linq;
+using System.IO;
 
 namespace CQRS_Source_Generator.QuerySourceGenetator
 {
@@ -16,45 +19,48 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
 
         // first stage
         /// <summary>
-        /// This method is called for every syntax node in the compilation, checking if it has any attributes
+        /// This method is called for every syntax node in the compilation, checking if it is a method and has any attributes
         /// </summary>
         /// <param name="node"></param>
-        /// <returns>Returns <see langword="true"/> if interface has any attributes </returns>
-        public static bool IsSyntaxTargetForGeneration(SyntaxNode node)
-            => node is InterfaceDeclarationSyntax { AttributeLists.Count: > 0 };
+        /// <returns>Returns <see langword="true"/> if method has any methods </returns>
+        public static bool IsMethodWithAttributes(SyntaxNode node)
+            => node is MethodDeclarationSyntax { AttributeLists.Count: > 0};
 
         // second stage
         /// <summary>
         /// This method is called for every syntax node in the compilation, checking if it has the <see cref="Attributes.GenerateQuery"/> attribute
         /// </summary>
         /// <param name="context"></param>
-        /// <returns>Returns <see cref="InterfaceDeclarationSyntax"/> if it has <see cref="Attributes.GenerateQuery"/> attribute</returns>
-        public static InterfaceDeclarationSyntax? GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
+        /// <returns>Returns <see cref="MethodDeclarationSyntax"/> if it has <see cref="Attributes.GenerateQuery"/> attribute</returns>
+        public static MethodDeclarationSyntax? GetSemanticTargetsForGeneration(GeneratorSyntaxContext context)
         {
-            // we know the node is a InterfaceDeclarationSyntax thanks to IsSyntaxTargetForGeneration
+            // we know the node is a interfaceDeclarationSyntax thanks to IsSyntaxTargetForGeneration
             // and we can hard-cast it bcs it's fastest way to get the symbol
-            var InterfaceDeclarationSyntax = (InterfaceDeclarationSyntax)context.Node;
+            var methodDeclarationSyntax = (MethodDeclarationSyntax)context.Node;
 
-            // loop through all the attributes on the method
-            foreach (AttributeListSyntax attributeListSyntax in InterfaceDeclarationSyntax.AttributeLists)
-            {
-                foreach (AttributeSyntax attributeSyntax in attributeListSyntax.Attributes)
+
+
+
+                // loop through all the attributes on the method
+                foreach (AttributeListSyntax attributeListSyntax in methodDeclarationSyntax.AttributeLists)
                 {
-                    if (context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol attributeSymbol)
+                    foreach (AttributeSyntax attributeSyntax in attributeListSyntax.Attributes)
                     {
-                        continue;
-                    }
+                        if (context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol attributeSymbol)
+                        {
+                            continue;
+                        }
 
-                    INamedTypeSymbol attributeContainingTypeSymbol = attributeSymbol.ContainingType;
-                    string fullName = attributeContainingTypeSymbol.ToDisplayString();
+                        INamedTypeSymbol attributeContainingTypeSymbol = attributeSymbol.ContainingType;
 
-                    // check if it's [GenerateQuery]
-                    if (fullName == attributeFullName)
-                    {
-                        return InterfaceDeclarationSyntax;
+                        // check if it's [GenerateQuery]
+                        if (attributeContainingTypeSymbol.ToDisplayString().Equals(attributeFullName))
+                        {
+                            return methodDeclarationSyntax;
+                        }
                     }
                 }
-            }
+
 
             // we didn't find the attribute we were looking for
             return null;
@@ -65,66 +71,74 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
         /// Executes the generation of the source code
         /// </summary>
         /// <param name="compilation"></param>
-        /// <param name="interfaces"></param>
+        /// <param name="methods"></param>
         /// <param name="context"></param>
-        public static void Execute(Compilation compilation, ImmutableArray<InterfaceDeclarationSyntax> interfaces, SourceProductionContext context)
+        public static void Execute(Compilation compilation, ImmutableArray<MethodDeclarationSyntax> methods, SourceProductionContext context)
         {
-            if (interfaces.IsDefaultOrEmpty)
+            if (methods.IsDefaultOrEmpty)
             {
                 return;
             }
 
 
-            List<InterfaceInfo> interfacesInfo = GetTypesInfo(compilation, interfaces, context.CancellationToken);
+            List<MethodInfo> methodsInfo = GetTypesInfo(compilation, methods, context.CancellationToken);
 
 
-            foreach (InterfaceInfo interfaceInfo in interfacesInfo)
+            foreach (MethodInfo methodInfo in methodsInfo)
             {
-                string result = QueryTemplate.GetQueryTemplate(interfaceInfo);
-                context.AddSource("EnumExtensions.g.cs", SourceText.From(result, Encoding.UTF8));
+                context.AddSource(
+                    hintName: string.Format("{0}Query.g.cs",methodInfo.Name),
+                    sourceText: SourceText.From(QueryTemplate.GetQueryTemplate(methodInfo), Encoding.UTF8));
             }
         }
 
 
         /// <summary>
-        /// Converts the <see cref="InterfaceDeclarationSyntax"/> to <see cref="InterfaceInfo"/>
+        /// Converts the <see cref="MethodDeclarationSyntax"/> to <see cref="MethodInfo"/>
         /// </summary>
         /// <param name="compilation"></param>
-        /// <param name="interfaces"></param>
+        /// <param name="methods"></param>
         /// <param name="ct"></param>
-        /// <returns>Returns a list of <see cref="InterfaceInfo"/></returns>
-        static List<InterfaceInfo> GetTypesInfo(Compilation compilation, IEnumerable<InterfaceDeclarationSyntax> interfaces, CancellationToken ct)
+        /// <returns>Returns a list of <see cref="MethodInfo"/></returns>
+        static List<MethodInfo> GetTypesInfo(Compilation compilation, IEnumerable<MethodDeclarationSyntax> methods, CancellationToken ct)
         {
-            var interfacesInfo = new List<InterfaceInfo>();
+            var methodsInfo = new List<MethodInfo>();
 
             // Get the semantic representation of our marker attribute 
-            INamedTypeSymbol? interfaceAttribute = compilation.GetTypeByMetadataName(attributeFullName);
+            INamedTypeSymbol? generateQueryAttribute = compilation.GetTypeByMetadataName(attributeFullName);
 
-            if (interfaceAttribute == null)
+            if (generateQueryAttribute == null)
             {
                 // If this is null, the compilation couldn't find the marker attribute type
                 // which suggests there's something very wrong
-                return interfacesInfo;
+                return methodsInfo;
             }
 
-            foreach (InterfaceDeclarationSyntax InterfaceDeclarationSyntax in interfaces)
+            foreach (MethodDeclarationSyntax methodDeclarationSyntax in methods)
             {
                 ct.ThrowIfCancellationRequested();
 
-                // Get the semantic representation of the interface syntax
-                SemanticModel semanticModel = compilation.GetSemanticModel(InterfaceDeclarationSyntax.SyntaxTree);
-                if (semanticModel.GetDeclaredSymbol(InterfaceDeclarationSyntax) is not INamedTypeSymbol interfaceSymbol)
+                SemanticModel semanticModel = compilation.GetSemanticModel(methodDeclarationSyntax.SyntaxTree);
+                // Extract parameter information
+                if (methodDeclarationSyntax.ParameterList.Parameters.Count != 1)
                 {
-                    // something went wrong, ignore
-                    continue;
+                    throw new Exception("Query must have only 1 parameter. Use single DTO class");
                 }
 
+                var parameterSyntax = methodDeclarationSyntax.ParameterList.Parameters[0];
 
-                // Create an interfaceInfo for use in the generation phase
-                interfacesInfo.Add(new InterfaceInfo { Members = interfaceSymbol.GetMembers(), Name = interfaceSymbol.ToString(), Namespace = interfaceSymbol.ContainingNamespace.ToString() });
+                // Create an methodInfo for use in the generation phase
+                methodsInfo.Add(new MethodInfo { 
+                    Name = methodDeclarationSyntax.Identifier.ValueText,
+                    Namespace = methodDeclarationSyntax.Ancestors().OfType<NamespaceDeclarationSyntax>().First().Name.ToString(),
+                    ParentInterface = methodDeclarationSyntax.Ancestors().OfType<InterfaceDeclarationSyntax>().First().Identifier.ValueText,
+                    ReturnType = semanticModel.GetTypeInfo(methodDeclarationSyntax.ReturnType).Type.ToString(),
+                    Parameter = (semanticModel.GetTypeInfo(parameterSyntax.Type).Type.ToString(), parameterSyntax.Identifier.ValueText)
+                });
             }
 
-            return interfacesInfo;
+            return methodsInfo;
         }
     }
+
 }

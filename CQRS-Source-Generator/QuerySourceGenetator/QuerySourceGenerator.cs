@@ -1,5 +1,4 @@
-﻿using CQRS_Source_Generator.Helpers;
-using CQRS_Source_Generator.Models;
+﻿using CQRS_Source_Generator.Models;
 using CQRS_Source_Generator.QuerySourceGenetator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -19,18 +18,18 @@ namespace CQRS_Source_Generator
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
 
-            IncrementalValuesProvider<InterfaceDeclarationSyntax> interfaceDeclarations = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                predicate: static (s, _) => Pipelines.IsSyntaxTargetForGeneration(s),           // select Interfaces with attributes
-                transform: static (ctx, _) => Pipelines.GetSemanticTargetForGeneration(ctx))    // select the class with the [QueryAttribute]
-            .Where(static m => m is not null)!;                                                 // filter out attributed Interfaces that we don't care about
+            IncrementalValuesProvider<MethodDeclarationSyntax> methodDeclarations = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    predicate: static (s, _) => Pipelines.IsMethodWithAttributes(s),           // select Methods with attributes
+                    transform: static (ctx, _) => Pipelines.GetSemanticTargetsForGeneration(ctx))    // select all methods with the [QueryAttribute]
+                .Where(static m => m is not null)!;
 
-            // Combine the selected Interfaces with the `Compilation`
-            IncrementalValueProvider<(Compilation, ImmutableArray<InterfaceDeclarationSyntax>)> compilationAndInterfaces
-                = context.CompilationProvider.Combine(interfaceDeclarations.Collect());
+            // Combine the selected Methods with the `Compilation`
+            IncrementalValueProvider<(Compilation, ImmutableArray<MethodDeclarationSyntax>)> compilationAndMethods
+                = context.CompilationProvider.Combine(methodDeclarations.Collect());
 
-            // Generate the source using the compilation and Interfaces
-            context.RegisterSourceOutput(compilationAndInterfaces,
+            // Generate the source using the compilation and Methods
+            context.RegisterSourceOutput(compilationAndMethods,
                 static (spc, source) => Pipelines.Execute(source.Item1, source.Item2, spc));
 
         }

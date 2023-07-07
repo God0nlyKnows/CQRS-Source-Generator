@@ -1,4 +1,5 @@
 ﻿using CQRS_Source_Generator.Attributes;
+using MediatR;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,10 +10,15 @@ using TestConsoleApp.Domain.Clients.ValueObjects;
 
 namespace TestConsoleApp.Clients.Interfaces
 {
-    [GenerateQuery]
+    public record EmptyReq() : IRequest<IEnumerable<Client>>;
+    public record GetClientReq(ClientId Id) : IRequest<Client>;
+    
+    
     public interface IClientRepository
     {
+        [GenerateQuery]
         Task<IEnumerable<Client>> GetClientsAsync();
+        [GenerateQuery]
         Task<Client> GetClientAsync(ClientId id);
         Task<Client> AddClientAsync(Client client);
         Task<Client> UpdateClientAsync(Client client);
