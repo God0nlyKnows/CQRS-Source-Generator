@@ -13,7 +13,6 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
         {
 
             var str = $$""" 
-                using AutoMapper;
                 using MediatR;
                 using System;
                 using System.Collections.Generic;
@@ -22,7 +21,7 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
                 using System.Threading.Tasks;
 
                 namespace {{methodInfo.Namespace}};
-                public class {{methodInfo.Name}}QueryHandler : IRequestHandler<{{methodInfo.Parameter.Item1}}, {{GetNestedReturnType(methodInfo.ReturnType)}}>
+                public class {{methodInfo.Name}}QueryHandler : IRequestHandler<{{methodInfo.RequestType}}, {{GetNestedReturnType(methodInfo.ReturnType)}}>
                 {
                     private readonly {{methodInfo.ParentInterface}} _repository;
 
@@ -31,9 +30,9 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
                         _repository = repository;
                     }
 
-                    public async Task<{{GetNestedReturnType(methodInfo.ReturnType)}}> Handle({{methodInfo.Parameter.Item1}} {{methodInfo.Parameter.Item2}}, CancellationToken cancellationToken)
+                    public async Task<{{GetNestedReturnType(methodInfo.ReturnType)}}> Handle({{methodInfo.RequestType}} request, CancellationToken cancellationToken)
                     {
-                        return{{(IsTask(methodInfo.ReturnType) ? " await" : "")}} _repository.{{methodInfo.Name}}({{methodInfo.Parameter.Item2}});
+                        return{{(IsTask(methodInfo.ReturnType) ? " await" : "")}} _repository.{{methodInfo.Name}}({{(methodInfo.HasParameters ? string.Join(", ", methodInfo.OrderedRequestParameters.Select(p => $"request.{p}")) : "")}});
                         
                     }
                 }

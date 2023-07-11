@@ -26,7 +26,7 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
         /// <param name="node"></param>
         /// <returns>Returns <see langword="true"/> if method has any methods </returns>
         public static bool IsMethodWithAttributes(SyntaxNode node)
-            => node is MethodDeclarationSyntax { AttributeLists.Count: > 0};
+            => node is MethodDeclarationSyntax { AttributeLists.Count: > 0 };
 
         // second stage
         /// <summary>
@@ -43,25 +43,25 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
 
 
 
-                // loop through all the attributes on the method
-                foreach (AttributeListSyntax attributeListSyntax in methodDeclarationSyntax.AttributeLists)
+            // loop through all the attributes on the method
+            foreach (AttributeListSyntax attributeListSyntax in methodDeclarationSyntax.AttributeLists)
+            {
+                foreach (AttributeSyntax attributeSyntax in attributeListSyntax.Attributes)
                 {
-                    foreach (AttributeSyntax attributeSyntax in attributeListSyntax.Attributes)
+                    if (context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol attributeSymbol)
                     {
-                        if (context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol attributeSymbol)
-                        {
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        INamedTypeSymbol attributeContainingTypeSymbol = attributeSymbol.ContainingType;
+                    INamedTypeSymbol attributeContainingTypeSymbol = attributeSymbol.ContainingType;
 
-                        // check if it's [GenerateQuery]
-                        if (attributeContainingTypeSymbol.ToDisplayString().StartsWith(attributeFullName))
-                        {
-                            return methodDeclarationSyntax;
-                        }
+                    // check if it's [GenerateQuery]
+                    if (attributeContainingTypeSymbol.ToDisplayString().StartsWith(attributeFullName))
+                    {
+                        return methodDeclarationSyntax;
                     }
                 }
+            }
 
 
             // we didn't find the attribute we were looking for
@@ -89,7 +89,7 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
             foreach (MethodInfo methodInfo in methodsInfo)
             {
                 context.AddSource(
-                    hintName: string.Format("{0}Query.g.cs",methodInfo.Name),
+                    hintName: string.Format("{0}Query.g.cs", methodInfo.Name),
                     sourceText: SourceText.From(QueryTemplate.GetQueryTemplate(methodInfo), Encoding.UTF8));
             }
         }
@@ -118,24 +118,24 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
 
                 // Get our marker attribute data
                 var annotation = methodSymbol.GetAttributes().FirstOrDefault();
-                
-                    if (!annotation.AttributeClass.OriginalDefinition.Name.Equals(attributeName))
-                    {
-                        // This isn't the [GenerateQuery] attribute
-                        continue;
-                    }
 
-                    // Extract the attribute parameters
-                    
-                    // typeArgument represents the type argument T in the [GenerateQuery<T>] attribute
-                    var typeArgument = annotation.AttributeClass.TypeArguments.FirstOrDefault();
-                    
-                    if (typeArgument == null)
-                    {
-                        throw new Exception("Query must have a return type. Use single DTO class");
-                    }
+                if (!annotation.AttributeClass.OriginalDefinition.Name.Equals(attributeName))
+                {
+                    // This isn't the [GenerateQuery] attribute
+                    continue;
+                }
 
-                    string typeT = typeArgument.ToDisplayString();
+                // Extract the attribute parameters
+
+                // typeArgument represents the type argument T in the [GenerateQuery<T>] attribute
+                var typeArgument = annotation.AttributeClass.TypeArguments.FirstOrDefault();
+
+                if (typeArgument == null)
+                {
+                    throw new Exception("Query must have a return type. Use single DTO class");
+                }
+
+                string typeT = typeArgument.ToDisplayString();
 
                 //var typeTType = semanticModel.Compilation.GetTypeByMetadataName(typeT);
 
@@ -143,27 +143,34 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
                 // Extract parameter information
 
                 // Check if method has any parameters
+                ImmutableArray<string> orderedRequestParameters;
                 bool hasParameters = methodDeclarationSyntax.ParameterList.Parameters.Count != 0;
                 if (hasParameters)
                 {
-                    // Check if provided type has matching members
-                    if (!AreParametersValid(methodDeclarationSyntax.ParameterList.Parameters, typeArgument.GetMembers()))
+                    // Check if provided type has matching properties
+                    ImmutableArray<IPropertySymbol> props = typeArgument.GetMembers().OfType<IPropertySymbol>().Where(x => !x.Name.Equals("EqualityContract")).ToImmutableArray();
+                    if (methodDeclarationSyntax.ParameterList.Parameters.Count != props.Count())
                     {
                         throw new Exception($"Provided {typeT} class doesn't match to required parameters in method");
                     }
+
+                    orderedRequestParameters = GetOrderedProperties(props, methodDeclarationSyntax);
+
+
                 }
 
-                var methodParameters = GetParametersInOrder(methodDeclarationSyntax.ParameterList.Parameters);
 
 
                 // Create an methodInfo for use in the generation phase
-                methodsInfo.Add(new MethodInfo { 
+                methodsInfo.Add(new MethodInfo
+                {
                     Name = methodDeclarationSyntax.Identifier.ValueText,
                     Namespace = methodDeclarationSyntax.Ancestors().OfType<NamespaceDeclarationSyntax>().First().Name.ToString(),
                     ParentInterface = methodDeclarationSyntax.Ancestors().OfType<InterfaceDeclarationSyntax>().First().Identifier.ValueText,
                     ReturnType = semanticModel.GetTypeInfo(methodDeclarationSyntax.ReturnType).Type.ToString(),
+                    RequestType = typeT,
                     HasParameters = hasParameters,
-                    OrderedMethodParameters = hasParameters ? methodParameters : null,
+                    OrderedRequestParameters = orderedRequestParameters
                 });
             }
 
@@ -171,34 +178,27 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
         }
 
 
-        static bool AreParametersValid(SeparatedSyntaxList<ParameterSyntax> parameters, ImmutableArray<ISymbol> members)
+        static ImmutableArray<string> GetOrderedProperties(ImmutableArray<IPropertySymbol> properties, MethodDeclarationSyntax methodDeclarationSyntax)
         {
-            if (parameters.Count() != members.Count())
+            List<string> orderedProperties = new List<string>();
+            // Iterate over method parameters
+            foreach (var parameter in methodDeclarationSyntax.ParameterList.Parameters)
             {
-                return false;
-            }
+                // Find the corresponding property based on the parameter name
+                var property = properties.FirstOrDefault(p => p.Name.ToLower().Equals(parameter.Identifier.ValueText.ToLower()));
 
-            foreach (ParameterSyntax parameter in parameters)
-            {
-                if (!members.Any(x => x.Name.Equals(parameter.Identifier.ValueText)))
+                if (property == null)
                 {
-                    return false;
+                    // Handle the case when a property corresponding to the parameter is not found
+                    throw new Exception($"Property matching parameter '{parameter.Identifier.ValueText}' not found.");
                 }
+
+                // Add the property to the ordered list
+                orderedProperties.Add(property.Name);
             }
 
-            return true;
-        }
-
-        static SortedSet<(string, string)> GetParametersInOrder(SeparatedSyntaxList<ParameterSyntax> parameters)
-        {
-            var parametersInfo = new SortedSet<(string, string)>();
-
-            foreach (ParameterSyntax parameter in parameters)
-            {
-                parametersInfo.Add((parameter.Type.ToString(), parameter.Identifier.ValueText));
-            }
-
-            return parametersInfo;
+            // Convert the list to an array if needed
+            return orderedProperties.ToImmutableArray();
         }
     }
 

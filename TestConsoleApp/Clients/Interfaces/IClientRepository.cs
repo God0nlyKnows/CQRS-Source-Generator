@@ -12,8 +12,8 @@ namespace TestConsoleApp.Clients.Interfaces
 {
     public record GetClientsReq() : IRequest<IEnumerable<Client>>;
     public record GetClientReq(ClientId Id) : IRequest<Client>;
-    
-    
+
+
     public interface IClientRepository
     {
         [GenerateQuery<GetClientsReq>]
