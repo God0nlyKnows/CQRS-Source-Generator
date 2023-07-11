@@ -13,6 +13,7 @@ namespace CQRS_Source_Generator.Models
         public string ParentInterface;
         public string ReturnType;
         public bool IsAsync;
-        public (string, string) Parameter;
+        public bool HasParameters;
+        public SortedSet<(string, string)> OrderedMethodParameters;
     }
 }

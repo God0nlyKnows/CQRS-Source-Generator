@@ -18,6 +18,8 @@ namespace CQRS_Source_Generator
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
 
+
+
             IncrementalValuesProvider<MethodDeclarationSyntax> methodDeclarations = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     predicate: static (s, _) => Pipelines.IsMethodWithAttributes(s),           // select Methods with attributes
@@ -34,7 +36,7 @@ namespace CQRS_Source_Generator
 
         }
 
-        
+
 
     }
 }

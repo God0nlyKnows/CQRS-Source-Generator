@@ -10,12 +10,14 @@ using CQRS_Source_Generator.Models;
 using Microsoft.CodeAnalysis.CSharp;
 using System.Linq;
 using System.IO;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace CQRS_Source_Generator.QuerySourceGenetator
 {
     internal static class Pipelines
     {
         private const string attributeFullName = "CQRS_Source_Generator.Attributes.GenerateQuery";
+        private const string attributeName = "GenerateQuery";
 
         // first stage
         /// <summary>
@@ -54,7 +56,7 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
                         INamedTypeSymbol attributeContainingTypeSymbol = attributeSymbol.ContainingType;
 
                         // check if it's [GenerateQuery]
-                        if (attributeContainingTypeSymbol.ToDisplayString().Equals(attributeFullName))
+                        if (attributeContainingTypeSymbol.ToDisplayString().StartsWith(attributeFullName))
                         {
                             return methodDeclarationSyntax;
                         }
@@ -104,28 +106,55 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
         {
             var methodsInfo = new List<MethodInfo>();
 
-            // Get the semantic representation of our marker attribute 
-            INamedTypeSymbol? generateQueryAttribute = compilation.GetTypeByMetadataName(attributeFullName);
-
-            if (generateQueryAttribute == null)
-            {
-                // If this is null, the compilation couldn't find the marker attribute type
-                // which suggests there's something very wrong
-                return methodsInfo;
-            }
 
             foreach (MethodDeclarationSyntax methodDeclarationSyntax in methods)
             {
                 ct.ThrowIfCancellationRequested();
 
+
+                // Get method symbol of our method 
                 SemanticModel semanticModel = compilation.GetSemanticModel(methodDeclarationSyntax.SyntaxTree);
+                IMethodSymbol methodSymbol = semanticModel.GetDeclaredSymbol(methodDeclarationSyntax);
+
+                // Get our marker attribute data
+                var annotation = methodSymbol.GetAttributes().FirstOrDefault();
+                
+                    if (!annotation.AttributeClass.OriginalDefinition.Name.Equals(attributeName))
+                    {
+                        // This isn't the [GenerateQuery] attribute
+                        continue;
+                    }
+
+                    // Extract the attribute parameters
+                    
+                    // typeArgument represents the type argument T in the [GenerateQuery<T>] attribute
+                    var typeArgument = annotation.AttributeClass.TypeArguments.FirstOrDefault();
+                    
+                    if (typeArgument == null)
+                    {
+                        throw new Exception("Query must have a return type. Use single DTO class");
+                    }
+
+                    string typeT = typeArgument.ToDisplayString();
+
+                //var typeTType = semanticModel.Compilation.GetTypeByMetadataName(typeT);
+
+
                 // Extract parameter information
-                if (methodDeclarationSyntax.ParameterList.Parameters.Count != 1)
+
+                // Check if method has any parameters
+                bool hasParameters = methodDeclarationSyntax.ParameterList.Parameters.Count != 0;
+                if (hasParameters)
                 {
-                    throw new Exception("Query must have only 1 parameter. Use single DTO class");
+                    // Check if provided type has matching members
+                    if (!AreParametersValid(methodDeclarationSyntax.ParameterList.Parameters, typeArgument.GetMembers()))
+                    {
+                        throw new Exception($"Provided {typeT} class doesn't match to required parameters in method");
+                    }
                 }
 
-                var parameterSyntax = methodDeclarationSyntax.ParameterList.Parameters[0];
+                var methodParameters = GetParametersInOrder(methodDeclarationSyntax.ParameterList.Parameters);
+
 
                 // Create an methodInfo for use in the generation phase
                 methodsInfo.Add(new MethodInfo { 
@@ -133,11 +162,43 @@ namespace CQRS_Source_Generator.QuerySourceGenetator
                     Namespace = methodDeclarationSyntax.Ancestors().OfType<NamespaceDeclarationSyntax>().First().Name.ToString(),
                     ParentInterface = methodDeclarationSyntax.Ancestors().OfType<InterfaceDeclarationSyntax>().First().Identifier.ValueText,
                     ReturnType = semanticModel.GetTypeInfo(methodDeclarationSyntax.ReturnType).Type.ToString(),
-                    Parameter = (semanticModel.GetTypeInfo(parameterSyntax.Type).Type.ToString(), parameterSyntax.Identifier.ValueText)
+                    HasParameters = hasParameters,
+                    OrderedMethodParameters = hasParameters ? methodParameters : null,
                 });
             }
 
             return methodsInfo;
+        }
+
+
+        static bool AreParametersValid(SeparatedSyntaxList<ParameterSyntax> parameters, ImmutableArray<ISymbol> members)
+        {
+            if (parameters.Count() != members.Count())
+            {
+                return false;
+            }
+
+            foreach (ParameterSyntax parameter in parameters)
+            {
+                if (!members.Any(x => x.Name.Equals(parameter.Identifier.ValueText)))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        static SortedSet<(string, string)> GetParametersInOrder(SeparatedSyntaxList<ParameterSyntax> parameters)
+        {
+            var parametersInfo = new SortedSet<(string, string)>();
+
+            foreach (ParameterSyntax parameter in parameters)
+            {
+                parametersInfo.Add((parameter.Type.ToString(), parameter.Identifier.ValueText));
+            }
+
+            return parametersInfo;
         }
     }
 

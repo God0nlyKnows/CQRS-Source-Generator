@@ -10,18 +10,22 @@ using TestConsoleApp.Domain.Clients.ValueObjects;
 
 namespace TestConsoleApp.Clients.Interfaces
 {
-    public record EmptyReq() : IRequest<IEnumerable<Client>>;
+    public record GetClientsReq() : IRequest<IEnumerable<Client>>;
     public record GetClientReq(ClientId Id) : IRequest<Client>;
     
     
     public interface IClientRepository
     {
-        [GenerateQuery]
+        [GenerateQuery<GetClientsReq>]
         Task<IEnumerable<Client>> GetClientsAsync();
-        [GenerateQuery]
+
+        [GenerateQuery<GetClientReq>]
         Task<Client> GetClientAsync(ClientId id);
+
         Task<Client> AddClientAsync(Client client);
+
         Task<Client> UpdateClientAsync(Client client);
+
         Task DeleteClientAsync(int id);
     }
 }
