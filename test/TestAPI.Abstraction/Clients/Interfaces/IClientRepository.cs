@@ -1,18 +1,10 @@
 ﻿using CQRS_Source_Generator.Attributes;
-using MediatR;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using TestConsoleApp.Abstraction.Clients.Requests;
 using TestConsoleApp.Domain.Clients;
 using TestConsoleApp.Domain.Clients.ValueObjects;
 
 namespace TestConsoleApp.Clients.Interfaces
 {
-    public record GetClientsReq() : IRequest<IEnumerable<Client>>;
-    public record GetClientReq(ClientId Id) : IRequest<Client>;
-
 
     public interface IClientRepository
     {
@@ -26,6 +18,6 @@ namespace TestConsoleApp.Clients.Interfaces
 
         Task<Client> UpdateClientAsync(Client client);
 
-        Task DeleteClientAsync(int id);
+        Task DeleteClientAsync(ClientId id);
     }
 }
